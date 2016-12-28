@@ -1,0 +1,26 @@
+{
+  "name": "spur",
+  "version": "1.0.0",
+  "description": "NAV Anonymization Web Gateway",
+  "main": "spur.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://www.github.com/aguycalled/spur"
+  },
+  "keywords": [
+    "nav",
+    "anonymization",
+    "navtech",
+    "web",
+    "gateway"
+  ],
+  "author": "Alex V. <alex@alohechotecho.com>",
+  "license": "MIT",
+  "devDependencies": {
+    "chai": "^3.5.0",
+    "mocha": "^3.2.0"
+  }
+}
