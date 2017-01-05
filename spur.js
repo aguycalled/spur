@@ -613,8 +613,8 @@ function handleRequest(request, response){
               writeServer(response,{
                 err:'',
                 expires: expires,
-                val:rows[0].amount,
-                expected:rows[0].flag1,
+                val:rows[0].flag1?rows[0].flag1:0,
+                expected:rows[0].amount,
                 status:rows[0].flag2?rows[0].flag2:0
               });
 
