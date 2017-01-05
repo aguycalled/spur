@@ -614,7 +614,7 @@ function handleRequest(request, response){
                 err:'',
                 expires: expires,
                 val:rows[0].amount,
-                expected:rows[0].amount,
+                expected:rows[0].flag1,
                 status:rows[0].flag2?rows[0].flag2:0
               });
 
