@@ -22,5 +22,18 @@
   "devDependencies": {
     "chai": "^3.5.0",
     "mocha": "^3.2.0"
+  },
+  "dependencies": {
+    "async": "^2.1.4",
+    "bitcoin-core": "^1.1.0",
+    "chai": "^3.5.0",
+    "config": "^1.24.0",
+    "fs": "0.0.1-security",
+    "http": "0.0.0",
+    "https": "^1.0.0",
+    "querystring": "^0.2.0",
+    "sqlite3": "^3.1.8",
+    "unix-timestamp": "^0.2.0",
+    "ursa": "^0.9.4"
   }
 }

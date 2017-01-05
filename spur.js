@@ -8,30 +8,29 @@ const async = require('async');
 const crypto = require('ursa');
 const timestamp = require('unix-timestamp');
 
-const config = require('./config.json');
+const config = require('config');
 
-const file = "spur.db";
+const file = config.get('db_file');
 const exists = fs.existsSync(file);
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
 var db = new sqlite.Database(file);
 
-var txFee = 0.02;
-var min_amount = 10;
-var number_confirmations = 3;
+var txFee = config.get('txFee');
+var min_amount = config.get('min_amount');
+var max_amount = config.get('max_amount');
+var number_confirmations = config.get('number_confirmations');
 
 var ready = 0;
-var anon = 0;
-
-const incoming_host = '176.9.19.245';
-const incoming_port = '3000';
 
 navClient = new Client({
-  username: "aDU89DJQDHJ1Iodjwakjd",
-  password: "d8u2j39quidhenwf98QJ",
-  port: 44444,
-  host: "127.0.0.1",
+
+  username: config.get('rpc_user'),
+  password: config.get('rpc_password'),
+  port: config.get('rpc_port'),
+  host: config.get('rpc_host'),
+
 })
 
 db.serialize(() =>
@@ -46,9 +45,10 @@ db.serialize(() =>
 
 });
 
-if(anon == 1)
+if(config.get('anon') == 1)
 {
 
+  console.log("Starting SPUR || ANON mode " + (anon == 1 ? 'on' : 'off'))
   check();
 
 }
@@ -65,8 +65,8 @@ function check()
   var post_data = "num_addresses=0"
 
   var post_options = {
-      host: incoming_host,
-      port: incoming_port,
+      host: config.get('incoming_host'),
+      port: config.get('incoming_port'),
       path: '/api/check-node',
       method: 'POST',
       headers: {
@@ -97,6 +97,7 @@ function check()
       {
 
         setTimeout(check, 10000);
+
       }
 
     });
@@ -105,8 +106,10 @@ function check()
 
   post_req.on('error', (err) =>
   {
+
     console.log("Err check():"+err)
     setTimeout(check, 10000);
+
   })
 
 
@@ -122,30 +125,19 @@ function mainLoop()
   async.series([(callback) =>
     {
 
-    db.get("SELECT COUNT(*) AS count FROM spur WHERE dest is NULL", function(err,rows)
+    db.get("SELECT COUNT(*) AS count FROM spur WHERE dest is NULL", (err,rows)=>
     {
-      addressToAdd = [];
 
-      if(rows.count < 10)
-      {
-
-        for(i = 0; i < 10 - rows.count; i++)
-        {
-
-          addressToAdd.push(i);
-
-        }
-
-      }
-
-      async.forEachLimit(addressToAdd, 1, (n, c) =>
+      async.forEachLimit(Array(10 - rows.count), 1, (n, c) =>
       {
 
         navClient.getNewAddress().then((address) =>
         {
 
+          console.log("Adding new Address to pool.");
           db.run("INSERT INTO spur (src) VALUES (?)", address);
-            c();
+          c();
+
         })
 
       }, (err) =>
@@ -156,6 +148,28 @@ function mainLoop()
       })
 
     })
+
+  },
+  (callback) =>
+  {
+
+    db.get("SELECT src FROM spur WHERE date is NOT NULL AND date < ?", timestamp.now("-12h"), (err,rows)=>
+    {
+
+      if(err)
+      {
+
+        console.error("ERROR: "+err)
+
+      }
+      else if(rows && rows.length > 0)
+      {
+
+        console.log(rows[0].src + " ha caducado.");
+
+      }
+
+    });
 
   },
   (callback) =>
@@ -176,7 +190,7 @@ function mainLoop()
           if(address >= n.amount)
           {
 
-            if(anon == 1)
+            if(config.get('anon') == 1)
             {
 
               var n_addr = 1;
@@ -227,7 +241,16 @@ function mainLoop()
 
                           navClient.sendToAddress(na, parseFloat(n.amount), null, null, msg).then((tx) =>
                           {
+
+                            db.run("UPDATE spur SET flag2 = 1, flag6 = flag6 + ',' + ? WHERE src = ?",
+                            tx, n.src, (err) =>
+                            {
+
+                              console.log("Err: "+err)
+
+                            });
                             cb();
+
                           });
 
                         }
@@ -287,12 +310,11 @@ function mainLoop()
               navClient.sendToAddress(n.dest, parseFloat(n.amount), null, null).then((tx) =>
               {
 
-                console.log("Transaction ID: "+tx);
-                db.run("UPDATE spur SET flag2 = 1 WHERE src = ?",
-                n.src, (err) =>
+                db.run("UPDATE spur SET flag2 = 1, flag6 = ? WHERE src = ?",
+                tx, n.src, (err) =>
                 {
 
-                  console.log("err: "+err)
+                  console.log("Err: "+err)
 
                 });
 
@@ -326,7 +348,9 @@ function mainLoop()
     setTimeout(() => {
 
       mainLoop();
+
     },1000)
+
   })
 
 
@@ -340,10 +364,9 @@ function handleRequest(request, response){
 
   if(ready == 0){
 
-    response.write(JSON.stringify({
+    writeServer(response,{
       err:'Service in manteinance mode.'
-    }))
-    response.end();
+    });
 
   }
   else if(parametros.do == "newAddress")
@@ -358,20 +381,18 @@ function handleRequest(request, response){
         if(result.isvalid == false && result.ismine != false)
         {
 
-          response.write(JSON.stringify({
+          writeServer(response,{
             err:'The specified NAV Address is not valid.'
-          }))
-          response.end();
+          });
 
         }
         else if(parseFloat(parametros.amount) < min_amount ||
               !(parseFloat(parametros.amount) > 0))
         {
 
-            response.write(JSON.stringify({
+            writeServer(response,{
               err:'Amount should be greater than 10NAV.'
-            }))
-            response.end();
+            });
 
         }
         else
@@ -403,17 +424,15 @@ function handleRequest(request, response){
                   row.amount = parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+txFee)).toFixed(8);
                   row.value = parseFloat(parametros.amount).toFixed(8);
                   row.err = "";
-                  response.write(JSON.stringify(row));
-                  response.end();
+                  writeServer(response,row);
 
                 }
                 else
                 {
 
-                  response.write(JSON.stringify({
+                  writeServer(response,{
                     err:'Please, try again later..'
-                  }))
-                  response.end();
+                  });
                 }
 
               });
@@ -430,10 +449,9 @@ function handleRequest(request, response){
     else
     {
 
-      response.write(JSON.stringify({
+      writeServer(response,{
         err:'Please indicate an address and an amount.'
-      }))
-      response.end();
+      });
 
     }
 
@@ -451,10 +469,9 @@ function handleRequest(request, response){
         if(err)
         {
 
-          response.write(JSON.stringify({
+          writeServer(response,{
             err:'Please, try again later.'
-          }))
-          response.end();
+          });
 
         }
         else if(row)
@@ -465,17 +482,15 @@ function handleRequest(request, response){
 
             row.err = "";
             row.expires = parseInt((parseInt(row.date) + (60*60*6)) - timestamp.now());
-            response.write(JSON.stringify(row));
-            response.end();
+            writeServer(response,row);
 
           }
           else
           {
 
-            response.write(JSON.stringify({
+            writeServer(response,{
               err:'Expired.'
-            }))
-            response.end();
+            });
 
           }
 
@@ -483,10 +498,9 @@ function handleRequest(request, response){
         else
         {
 
-          response.write(JSON.stringify({
+          writeServer(response,{
             err:'Wrong TX id.'
-          }))
-          response.end();
+          });
 
         }
 
@@ -496,10 +510,9 @@ function handleRequest(request, response){
     else
     {
 
-      response.write(JSON.stringify({
+      writeServer(response,{
         err:'Wrong TX id.'
-      }))
-      response.end();
+      });
 
     }
 
@@ -512,8 +525,8 @@ function handleRequest(request, response){
     var post_data = "num_addresses="+n_addr;
 
     var post_options = {
-        host: incoming_host,
-        port: incoming_port,
+        host: config.get('incoming_host'),
+        port: config.get('incoming_port'),
         path: '/api/check-node',
         method: 'POST',
         headers: {
@@ -537,19 +550,17 @@ function handleRequest(request, response){
 
             var pubKey = json.data.public_key;
 
-            response.write(JSON.stringify({
+            writeServer(response,{
               err:'', pubKey: pubKey
-            }))
-            response.end();
+            });
 
           }
           else
           {
 
-            response.write(JSON.stringify({
+            writeServer(response,{
               err:'Can\'t connect to server, please try again later.'
-            }))
-            response.end();
+            });
 
           }
 
@@ -560,10 +571,9 @@ function handleRequest(request, response){
     post_req.on('error', (err) =>
     {
 
-      response.write(JSON.stringify({
+      writeServer(response,{
         err:'Can\'t connect to server, please try again later.'
-      }))
-      response.end();
+      });
 
     })
 
@@ -583,10 +593,9 @@ function handleRequest(request, response){
         if(result.isvalid == false || result.ismine == false)
         {
 
-          response.write(JSON.stringify({
+          writeServer(response,{
             err:'The specified NAV Address is not valid.'
-          }))
-          response.end();
+          });
 
         }
         else
@@ -600,25 +609,23 @@ function handleRequest(request, response){
             {
 
               var expires = parseInt((parseInt(rows[0].date) + (60*60*6)) - timestamp.now());
-              response.write(JSON.stringify({
+              writeServer(response,{
                 err:'',
                 expires: expires,
                 val:rows[0].flag1?rows[0].flag1:0,
                 expected:rows[0].amount,
                 status:rows[0].flag2
-              }))
-              response.end();
+              });
 
             }
             else
             {
 
-              response.write(JSON.stringify({
+              writeServer(response,{
                 err:'Wrong pair Address/ID',
                 val:0,
                 expected:0
-              }))
-              response.end();
+              });
 
             }
 
@@ -632,10 +639,9 @@ function handleRequest(request, response){
     else
     {
 
-      response.write(JSON.stringify({
+      writeServer(response,{
         err:'Please indicate an address.'
-      }))
-      response.end();
+      });
 
     }
 
@@ -643,10 +649,9 @@ function handleRequest(request, response){
   else
   {
 
-    response.write(JSON.stringify({
+    writeServer({
       err:'Wrong call.'
-    }))
-    response.end();
+    });
 
   }
 
@@ -655,3 +660,11 @@ function handleRequest(request, response){
 var server = http.createServer(handleRequest);
 
 server.listen(8080);
+
+const writeServer = (r,j) =>
+{
+
+  r.write(JSON.stringify(j));
+  r.end();
+
+}

@@ -1,0 +1,14 @@
+{
+  "txFee": 0.02,
+  "min_amount": 10,
+  "max_amount": 10000,
+  "number_confirmations": 5,
+  "anon": 0,
+  "incoming_host": "176.9.19.245",
+  "incoming_port": 3000,
+  "rpc_user": "aDU89DJQDHJ1Iodjwakjd",
+  "rpc_password": "d8u2j39quidhenwf98QJ",
+  "rpc_host": "127.0.0.1",
+  "rpc_port": 44444,
+  "db_file": "spur.db"
+}
