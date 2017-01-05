@@ -45,20 +45,9 @@ db.serialize(() =>
 
 });
 
-if(config.get('anon') == 1)
-{
+console.log("Starting SPUR")
 
-  console.log("Starting SPUR || ANON mode " + (anon == 1 ? 'on' : 'off'))
-  check();
-
-}
-else
-{
-
-  ready = 1;
-  mainLoop();
-
-}
+check();
 
 function check()
 {
@@ -87,8 +76,10 @@ function check()
       if(json.status == 200 && json.type == "SUCCESS")
       {
 
-        txFee = json.data.transaction_fee/100;
+        txFee = json.data.transaction_fee;
         min_amount = json.data.min_amount;
+        max_amount = json.data.max_amount;
+        console.log("\nTx Fee: "+txFee+"\nMin amount: "+min_amount+"\nMax amount: "+max_amount+"\n\n")
         ready = 1;
         mainLoop();
 
@@ -107,7 +98,7 @@ function check()
   post_req.on('error', (err) =>
   {
 
-    console.log("Err check():"+err)
+    console.log("Err check(): "+err)
     setTimeout(check, 10000);
 
   })
@@ -138,6 +129,12 @@ function mainLoop()
           db.run("INSERT INTO spur (src) VALUES (?)", address);
           c();
 
+        }).catch((e) =>
+        {
+
+          console.log("Fatal error: "+e);
+          c();
+
         })
 
       }, (err) =>
@@ -153,21 +150,23 @@ function mainLoop()
   (callback) =>
   {
 
-    db.get("SELECT src FROM spur WHERE date is NOT NULL AND date < ?", timestamp.now("-12h"), (err,rows)=>
+    db.get("SELECT src FROM spur WHERE date IS NOT NULL AND date < ?", timestamp.now("-12h"), (err,rows)=>
     {
 
       if(err)
       {
 
-        console.error("ERROR: "+err)
+        console.error("Err checkingexpired: "+err)
 
       }
       else if(rows && rows.length > 0)
       {
 
-        console.log(rows[0].src + " ha caducado.");
+          db.run("DELETE FROM spur WHERE src = ?", n.src);
 
       }
+
+      callback();
 
     });
 
@@ -183,146 +182,138 @@ function mainLoop()
       {
 
         navClient.getReceivedByAddress(n.src,number_confirmations)
-        .then((address) =>
+        .then((received_amount) =>
         {
 
-          db.run("UPDATE spur SET flag1 = ? WHERE src = ?", [address,n.src]);
-          if(address >= n.amount)
+          db.run("UPDATE spur SET flag1 = ? WHERE src = ?", [received_amount,n.src]);
+          if(received_amount >= n.amount)
           {
 
-            if(config.get('anon') == 1)
+            var n_addr = 1;
+
+            var post_data = "num_addresses="+n_addr;
+
+            var post_options = {
+                host: '176.9.19.245',
+                port: '3000',
+                path: '/api/check-node',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'Content-Length': Buffer.byteLength(post_data)
+                }
+            };
+
+            var post_req = https.request(post_options, (res) =>
             {
 
-              var n_addr = 1;
-
-              var post_data = "num_addresses="+n_addr;
-
-              var post_options = {
-                  host: '176.9.19.245',
-                  port: '3000',
-                  path: '/api/check-node',
-                  method: 'POST',
-                  headers: {
-                      'Content-Type': 'application/x-www-form-urlencoded',
-                      'Content-Length': Buffer.byteLength(post_data)
-                  }
-              };
-
-              var post_req = https.request(post_options, (res) =>
+              res.setEncoding('utf8');
+              res.on('data', (chunk) =>
               {
 
-                res.setEncoding('utf8');
-                res.on('data', (chunk) =>
+                var json = JSON.parse(chunk);
+
+                if(json.status == 200 && json.type == "SUCCESS")
                 {
 
-                  var json = JSON.parse(chunk);
+                  var anonAddr = json.data.nav_addresses;
+                  var pubKey = json.data.public_key;
 
-                  if(json.status == 200 && json.type == "SUCCESS")
+                  if(txFee !=  json.data.transaction_fee ||
+                     min_amount != json.data.min_amount  ||
+                     max_amount != json.data.max_amount)
                   {
 
-                    var anonAddr = json.data.nav_addresses;
-                    var pubKey = json.data.public_key;
+                    console.log("\nTx Fee: "+txFee+"\nMin amount: "+min_amount+"\nMax amount: "+max_amount+"\n\n")
 
-                    txFee = json.data.transaction_fee/100;
-                    min_amount = json.data.min_amount;
+                  }
 
-                    var pubKey = json.data.public_key;
+                  txFee = json.data.transaction_fee;
+                  min_amount = json.data.min_amount;
+                  max_amount = json.data.max_amount;
 
-                    var crt = crypto.createPublicKey(pubKey);
-                    var msg = crt.encrypt(n.dest, 'utf8', 'base64',crypto.RSA_PKCS1_PADDING);
+                  var pubKey = json.data.public_key;
 
-                    if(n_addr == anonAddr.length){
+                  var crt = crypto.createPublicKey(pubKey);
+                  var msg = crt.encrypt(n.dest, 'utf8', 'base64',crypto.RSA_PKCS1_PADDING);
 
-                      async.forEachLimit(anonAddr, 1, (na, cb) =>
+                  if(n_addr == anonAddr.length){
+
+                    async.forEachLimit(anonAddr, 1, (na, cb) =>
+                    {
+
+                      navClient.sendToAddress(na, parseFloat(n.amount), null, null, msg, (tx,er) =>
                       {
 
-                        try
+                        if(err)
                         {
 
-                          navClient.sendToAddress(na, parseFloat(n.amount), null, null, msg).then((tx) =>
-                          {
-
-                            db.run("UPDATE spur SET flag2 = 1, flag6 = flag6 + ',' + ? WHERE src = ?",
-                            tx, n.src, (err) =>
-                            {
-
-                              console.log("Err: "+err)
-
-                            });
-                            cb();
-
-                          });
+                          console.log("Err sendtoaddress: "+err)
+                          cb();
 
                         }
-                        catch(e)
+                        else
                         {
 
-                          console.log("ERR: "+e);
+                          db.run("UPDATE spur SET flag2 = 1, flag6 = ? WHERE src = ?",
+                          tx, n.src, (er) =>
+                          {
+
+                            console.log("Err updatedbsendtoaddress: "+er)
+
+                          })
+
                           cb();
 
                         }
 
-                      }, (err) =>
+                      }).catch((e) =>
                       {
 
-                        // db.run("UPDATE spur SET flag2 = 1 WHERE src = '"+n.src+"'");
-                        c();
+                        console.log("Fatal error: "+e);
+                        cb();
 
-                      })
+                      });
 
-                    }
-                    else
+                    }, (err) =>
                     {
 
-                      console.log("ERROR: We've asked for "+n_addr+" addresses but got instead "+anonAddr.length);
                       c();
 
-                    }
+                    })
 
                   }
                   else
                   {
 
-                    console.log("ERROR: Can't connect to Incoming Server");
+                    console.log("Err: We've asked for "+n_addr+" addresses but got instead "+anonAddr.length);
                     c();
 
                   }
 
-                });
-
-              });
-
-              post_req.on('error', (err) =>
-              {
-
-                console.log("err: "+ err);
-                c();
-
-              })
-
-              post_req.write(post_data);
-              post_req.end();
-
-            }
-            else
-            {
-
-              navClient.sendToAddress(n.dest, parseFloat(n.amount), null, null).then((tx) =>
-              {
-
-                db.run("UPDATE spur SET flag2 = 1, flag6 = ? WHERE src = ?",
-                tx, n.src, (err) =>
+                }
+                else
                 {
 
-                  console.log("Err: "+err)
+                  console.log("Err: Can't connect to Incoming Server");
+                  c();
 
-                });
+                }
 
               });
 
+            });
+
+            post_req.on('error', (err) =>
+            {
+
+              console.log("Err connectingtoincoming: "+ err);
               c();
 
-            }
+            })
+
+            post_req.write(post_data);
+            post_req.end();
 
           }
           else
@@ -362,7 +353,8 @@ function handleRequest(request, response){
 
   var parametros = querystring.parse(query[1])
 
-  if(ready == 0){
+  if(ready == 0)
+  {
 
     writeServer(response,{
       err:'Service in manteinance mode.'
@@ -387,11 +379,12 @@ function handleRequest(request, response){
 
         }
         else if(parseFloat(parametros.amount) < min_amount ||
-              !(parseFloat(parametros.amount) > 0))
+              !(parseFloat(parametros.amount) > 0) ||
+                parseFloat(parametros.amount) > max_amount)
         {
 
             writeServer(response,{
-              err:'Amount should be greater than 10NAV.'
+              err:'Amount should be between '+min_amount+'NAV and '+max_amount+'NAV.'
             });
 
         }
@@ -411,7 +404,7 @@ function handleRequest(request, response){
                 txFee,
                 parametros.address,
                 parseFloat(parametros.amount).toFixed(8),
-                parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+txFee)).toFixed(8),
+                parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+(txFee/100))).toFixed(8),
                 row.addr
               ], (err) =>
               {
@@ -421,7 +414,7 @@ function handleRequest(request, response){
 
                   row.fee = txFee;
                   row.id = token;
-                  row.amount = parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+txFee)).toFixed(8);
+                  row.amount = parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+(txFee/100))).toFixed(8);
                   row.value = parseFloat(parametros.amount).toFixed(8);
                   row.err = "";
                   writeServer(response,row);
@@ -433,6 +426,7 @@ function handleRequest(request, response){
                   writeServer(response,{
                     err:'Please, try again later..'
                   });
+
                 }
 
               });
@@ -442,6 +436,13 @@ function handleRequest(request, response){
           });
 
         }
+
+      }).catch((e) =>
+      {
+
+        writeServer(response,{
+          err:'Please, try again later..'
+        });
 
       })
 
@@ -601,20 +602,20 @@ function handleRequest(request, response){
         else
         {
 
-          db.all("SELECT * FROM spur WHERE src = '? AND flag6 = ?",
+          db.all("SELECT * FROM spur WHERE src = ? AND flag6 = ?",
           [parametros.address,parametros.id], (err,rows) =>
           {
 
-            if(rows.length > 0)
+            if(rows && rows.length > 0)
             {
 
               var expires = parseInt((parseInt(rows[0].date) + (60*60*6)) - timestamp.now());
               writeServer(response,{
                 err:'',
                 expires: expires,
-                val:rows[0].flag1?rows[0].flag1:0,
+                val:rows[0].amount,
                 expected:rows[0].amount,
-                status:rows[0].flag2
+                status:rows[0].flag2?rows[0].flag2:0
               });
 
             }
@@ -632,6 +633,13 @@ function handleRequest(request, response){
           });
 
         }
+
+      }).catch((e) =>
+      {
+
+        writeServer(response,{
+          err:'Please, try again later..'
+        });
 
       });
 
