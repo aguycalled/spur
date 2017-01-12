@@ -8,5 +8,6 @@
   "rpc_password": "password",
   "rpc_host": "127.0.0.1",
   "rpc_port": 44444,
-  "db_file": "spur.db"
+  "db_file": "spur.db",
+  "listen_port": 8080
 }

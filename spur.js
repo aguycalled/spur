@@ -20,6 +20,7 @@ var db = new sqlite.Database(file);
 
 var txPayoutAddress = config.get('payout_address');
 var txFeeLocal = config.get('extra_fee') || 0;
+var listen_port = config.get('listen_port') || 8080;
 var min_amount = 10;
 var max_amount = 10000;
 var number_confirmations = config.get('number_confirmations') || 5;
@@ -1017,7 +1018,7 @@ function handleRequest(request, response){
 
 var server = http.createServer(handleRequest);
 
-server.listen(8080);
+server.listen(listen_port);
 
 const writeServer = (r,j) =>
 {
