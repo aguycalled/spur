@@ -18,6 +18,7 @@ var generatedPublicKey, generatedPrivateKey;
 
 var db = new sqlite.Database(file);
 
+var txPayoutAddress = config.get('payout_address');
 var txFeeLocal = config.get('extra_fee') || 0;
 var min_amount = 10;
 var max_amount = 10000;
@@ -425,9 +426,7 @@ function mainLoop()
 
                   var pubKey = json.data.public_key;
 
-                  var amountWithoutLocalFee = (n.amount * ((1+txFee)/100)) / ((1+txFee+txFeeLocal)/100)
-
-                  console.log("REceived "+n.amount+" sending "+amountWithoutLocalFee)
+                  var amountWithoutLocalFee = (n.amount * (1+(txFee)/100)) / (1+(txFee+txFeeLocal)/100)
 
                   if(n_addr == anonAddr.length)
                   {
@@ -435,18 +434,24 @@ function mainLoop()
                     async.forEachLimit(anonAddr, 1, (na, cb) =>
                     {
 
-                      navClient.sendToAddress(na, parseFloat(amountWithoutLocalFee), null, null, n.dest, (tx,err) =>
+                      navClient.sendToAddress(na, parseFloat(amountWithoutLocalFee), null, null, n.dest, (tx) =>
                       {
 
-                        if(err)
-                        {
+                        if(tx){
 
-                          console.log("Err sendtoaddress: "+err)
-                          cb();
+                          var fee = parseFloat(n-amount - amountWithoutLocalFee);
 
-                        }
-                        else
-                        {
+                          navClient.sendToAddress(txPayoutAddress, fee, null, null, null,(tx) =>
+                          {
+
+                            console.log("Sending "+fee+" NAV to payout address. TX: "+tx)
+
+                          }).catch((e) =>
+                          {
+
+                            console.log("Error sending fee to payout address: "+ e)
+
+                          });
 
                           db.run("UPDATE spur SET flag2 = 1 WHERE src = ?",
                           n.src, (er) =>
@@ -461,15 +466,27 @@ function mainLoop()
 
                           })
 
-                          cb();
-
                         }
+
+                        cb();
 
                       }).catch((e) =>
                       {
 
+                        db.run("UPDATE spur SET flag2 = 0 WHERE src = ?",
+                        n.src, (er) =>
+                        {
+
+                          if(er)
+                          {
+
+                            console.log("Err updatedbsendtoaddress: "+er)
+
+                          }
+
+                        })
+
                         console.log("Fatal error: "+e);
-                        cb();
 
                       });
 
@@ -698,7 +715,7 @@ function handleRequest(request, response){
                                       txFee+txFeeLocal,
                                       msg,
                                       parseFloat(parametros.amount).toFixed(8),
-                                      parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+(txFee+txFeeLocal/100))).toFixed(8),
+                                      parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+((txFee+txFeeLocal)/100))).toFixed(8),
                                       row.addr
                                     ], (err) =>
                                     {
@@ -708,7 +725,7 @@ function handleRequest(request, response){
 
                                         row.fee = txFee+txFeeLocal;
                                         row.id = token;
-                                        row.amount = parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+(txFee+txFeeLocal/100))).toFixed(8);
+                                        row.amount = parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+((txFee+txFeeLocal)/100))).toFixed(8);
                                         row.value = parseFloat(parametros.amount).toFixed(8);
                                         row.err = "";
                                         writeServer(response,row);
