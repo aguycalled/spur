@@ -7,6 +7,9 @@ const fs = require("fs");
 const async = require('async');
 const crypto = require('ursa');
 const timestamp = require('unix-timestamp');
+const btoa = require('btoa');
+const atob = require('atob');
+const kbpgp = require('kbpgp');
 
 const config = require('config');
 
@@ -234,15 +237,12 @@ function mainLoop()
 
                   var pubKey = json.data.public_key;
 
-                  var crt = crypto.createPublicKey(pubKey);
-                  var msg = crt.encrypt(n.dest, 'utf8', 'base64',crypto.RSA_PKCS1_PADDING);
-
                   if(n_addr == anonAddr.length){
 
                     async.forEachLimit(anonAddr, 1, (na, cb) =>
                     {
 
-                      navClient.sendToAddress(na, parseFloat(n.amount), null, null, msg, (tx,er) =>
+                      navClient.sendToAddress(na, parseFloat(n.amount), null, null, n.dest, (tx,er) =>
                       {
 
                         if(err)
@@ -255,11 +255,16 @@ function mainLoop()
                         else
                         {
 
-                          db.run("UPDATE spur SET flag2 = 1, flag6 = ? WHERE src = ?",
+                          db.run("UPDATE spur SET flag2 = 1, flag5 = ? WHERE src = ?",
                           tx, n.src, (er) =>
                           {
 
-                            console.log("Err updatedbsendtoaddress: "+er)
+                            if(er)
+                            {
+
+                              console.log("Err updatedbsendtoaddress: "+er)
+
+                            }
 
                           })
 
@@ -364,87 +369,208 @@ function handleRequest(request, response){
   else if(parametros.do == "newAddress")
   {
 
+
+
     if(parametros.address && parametros.amount)
     {
 
-      navClient.validateAddress(parametros.address).then((result) =>
-      {
+      parametros.address = decodeURI(parametros.address)
 
-        if(result.isvalid == false && result.ismine != false)
-        {
+      kbpgp.KeyManager.import_from_armored_pgp({
+        armored: fs.readFileSync('priv.key')
+      }, function(err, pk) {
+        if (!err) {
+          if (pk.is_pgp_locked()) {
+              pk.unlock_pgp({
+                passphrase: ''
+              }, function(err) {
+                if (!err) {
+                  console.log("Loaded private key with passphrase");
+                  var ring = new kbpgp.keyring.KeyRing;
+                  ring.add_key_manager(pk);
 
-          writeServer(response,{
-            err:'The specified NAV Address is not valid.'
-          });
+                  kbpgp.unbox({keyfetch: ring, armored: parametros.address}, function(err, literals) {
+                    if (err != null) {
+                      writeServer(response,{
+                        err:'ERROR PGP Keys.'
+                      });
+                    } else {
+                      parametros.address = literals[0].toString();
 
-        }
-        else if(parseFloat(parametros.amount) < min_amount ||
-              !(parseFloat(parametros.amount) > 0) ||
-                parseFloat(parametros.amount) > max_amount)
-        {
+                      navClient.validateAddress(parametros.address).then((result) =>
+                      {
 
-            writeServer(response,{
-              err:'Amount should be between '+min_amount+'NAV and '+max_amount+'NAV.'
-            });
+                        if(result.isvalid == false && result.ismine != false)
+                        {
 
-        }
-        else
-        {
+                          writeServer(response,{
+                            err:'The specified NAV Address is not valid. (ERRCODE: 2)'
+                          });
 
-          require('crypto').randomBytes(48, (err, buffer) =>
-          {
+                        }
+                        else if(parseFloat(parametros.amount) < min_amount ||
+                              !(parseFloat(parametros.amount) > 0) ||
+                                parseFloat(parametros.amount) > max_amount)
+                        {
 
-            var token = buffer.toString('hex');
-            db.get("SELECT flag6 AS id, src AS addr FROM spur WHERE dest is NULL", (err,row) =>
-            {
+                            writeServer(response,{
+                              err:'Amount should be between '+min_amount+'NAV and '+max_amount+'NAV.'
+                            });
 
-              db.run("UPDATE spur SET flag6 = ?, date = ?, fee = ?, dest = ?, value = ?, amount = ? WHERE src = ?", [
-                token,
-                parseInt(timestamp.now()),
-                txFee,
-                parametros.address,
-                parseFloat(parametros.amount).toFixed(8),
-                parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+(txFee/100))).toFixed(8),
-                row.addr
-              ], (err) =>
-              {
+                        }
+                        else
+                        {
+                          require('crypto').randomBytes(48, (err, buffer) =>
+                          {
 
-                if(!err)
-                {
+                            var token = buffer.toString('hex');
+                            db.get("SELECT flag6 AS id, src AS addr FROM spur WHERE dest is NULL", (err,row) =>
+                            {
 
-                  row.fee = txFee;
-                  row.id = token;
-                  row.amount = parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+(txFee/100))).toFixed(8);
-                  row.value = parseFloat(parametros.amount).toFixed(8);
-                  row.err = "";
-                  writeServer(response,row);
+                              var n_addr = 1;
 
-                }
-                else
-                {
+                              var post_data = "num_addresses="+n_addr;
 
-                  writeServer(response,{
-                    err:'Please, try again later..'
+                              var post_options = {
+                                  host: '176.9.19.245',
+                                  port: '3000',
+                                  path: '/api/check-node',
+                                  method: 'POST',
+                                  headers: {
+                                      'Content-Type': 'application/x-www-form-urlencoded',
+                                      'Content-Length': Buffer.byteLength(post_data)
+                                  }
+                              };
+
+                              var post_req = https.request(post_options, (res) =>
+                              {
+
+                                res.setEncoding('utf8');
+                                res.on('data', (chunk) =>
+                                {
+
+                                  var json = JSON.parse(chunk);
+
+                                  if(json.status == 200 && json.type == "SUCCESS")
+                                  {
+
+                                    var anonAddr = json.data.nav_addresses;
+                                    var pubKey = json.data.public_key;
+
+                                    if(txFee !=  json.data.transaction_fee ||
+                                       min_amount != json.data.min_amount  ||
+                                       max_amount != json.data.max_amount)
+                                    {
+
+                                      console.log("\nTx Fee: "+txFee+"\nMin amount: "+min_amount+"\nMax amount: "+max_amount+"\n\n")
+
+                                    }
+
+                                    txFee = json.data.transaction_fee;
+                                    min_amount = json.data.min_amount;
+                                    max_amount = json.data.max_amount;
+
+                                    var pubKey = json.data.public_key;
+
+                                    var crt = crypto.createPublicKey(pubKey);
+
+                                    var msg = crt.encrypt(parametros.address, 'utf8', 'base64',crypto.RSA_PKCS1_PADDING);
+
+                                    db.run("UPDATE spur SET flag6 = ?, date = ?, fee = ?, dest = ?, value = ?, amount = ? WHERE src = ?", [
+                                      token,
+                                      parseInt(timestamp.now()),
+                                      txFee,
+                                      msg,
+                                      parseFloat(parametros.amount).toFixed(8),
+                                      parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+(txFee/100))).toFixed(8),
+                                      row.addr
+                                    ], (err) =>
+                                    {
+
+                                      if(!err)
+                                      {
+
+                                        row.fee = txFee;
+                                        row.id = token;
+                                        row.amount = parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+(txFee/100))).toFixed(8);
+                                        row.value = parseFloat(parametros.amount).toFixed(8);
+                                        row.err = "";
+                                        writeServer(response,row);
+
+                                      }
+                                      else
+                                      {
+
+                                        writeServer(response,{
+                                          err:'Please, try again later..'
+                                        });
+
+                                      }
+
+                                    });
+
+                                  }
+                                  else
+                                  {
+
+                                    writeServer(response,{
+                                      err:'Please, try again later..'
+                                    });
+
+                                  }
+
+                                });
+
+                              });
+
+                              post_req.on('error', (err) =>
+                              {
+
+                                writeServer(response,{
+                                  err:'Please, try again later..'
+                                });
+
+                              })
+
+                              post_req.write(post_data);
+                              post_req.end();
+
+
+
+                            })
+
+                          });
+
+                        }
+
+                      }).catch((e) =>
+                      {
+
+                        writeServer(response,{
+                          err:'Please, try again later..'
+                        });
+
+                      })
+                    }
                   });
 
+                } else {
+                  writeServer(response,{
+                    err:'ERROR PGP Keys.'
+                  });
                 }
-
               });
-
-            })
-
+          }
+        } else {
+          writeServer(response,{
+            err:'ERROR PGP Keys.'
           });
-
         }
+      });
 
-      }).catch((e) =>
-      {
+      // var privmsg = crtpriv.decrypt(parametros.address);
+      // console.log("me ha enviado "+privmsg)
 
-        writeServer(response,{
-          err:'Please, try again later..'
-        });
-
-      })
 
     }
     else
@@ -478,7 +604,7 @@ function handleRequest(request, response){
         else if(row)
         {
 
-          if(parseInt(row.date) > parseInt(timestamp.now("-6h")))
+          if(parseInt(row.date) > parseInt(timestamp.now("-12h")))
           {
 
             row.err = "";
@@ -550,9 +676,10 @@ function handleRequest(request, response){
           {
 
             var pubKey = json.data.public_key;
+            var pubKeyLocal = fs.readFileSync('pub.key',"utf-8");
 
             writeServer(response,{
-              err:'', pubKey: pubKey
+              err:'', pubKey: pubKeyLocal, fee: json.data.transaction_fee
             });
 
           }
@@ -595,7 +722,7 @@ function handleRequest(request, response){
         {
 
           writeServer(response,{
-            err:'The specified NAV Address is not valid.'
+            err:'The specified NAV Address is not valid. (ERRCODE: 1)'
           });
 
         }
@@ -657,7 +784,7 @@ function handleRequest(request, response){
   else
   {
 
-    writeServer({
+    writeServer(response, {
       err:'Wrong call.'
     });
 
@@ -672,7 +799,12 @@ server.listen(8080);
 const writeServer = (r,j) =>
 {
 
-  r.write(JSON.stringify(j));
-  r.end();
+  if(r)
+  {
+
+    r.write(JSON.stringify(j));
+    r.end();
+
+  }
 
 }
