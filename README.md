@@ -107,7 +107,7 @@
 
 | Key | Value |
 |:-----------|:-----------|
-| id | The token id of the transaction as returned by getNewADdress |
+| id | The token id of the transaction as returned by getNewAddress |
 
 - Returns
 
