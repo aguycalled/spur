@@ -855,6 +855,7 @@ function handleRequest(request, response){
           {
 
             row.err = "";
+            delete row.date;
             row.expires = parseInt((parseInt(row.date) + (60*60*6)) - timestamp.now());
             writeServer(response,row);
 
@@ -956,70 +957,48 @@ function handleRequest(request, response){
   else if(parametros.do == "checkAddr")
   {
 
-    if(parametros.address && parametros.id)
+    if(parametros.id)
     {
 
-      navClient.validateAddress(parametros.address).then((result) =>
+      db.all("SELECT * FROM spur WHERE flag6 = ?",
+      [parametros.id], (err,rows) =>
       {
 
-        if(result.isvalid == false || result.ismine == false)
+        if(rows && rows.length > 0)
         {
 
+          var expires = parseInt((parseInt(rows[0].date) + (60*60*6)) - timestamp.now());
           writeServer(response,{
-            err:'The specified NAV Address is not valid. (ERRCODE: 1)'
+            err:'',
+            expires: expires,
+            val:rows[0].flag1?rows[0].flag1:0,
+            expected:rows[0].amount,
+            status:rows[0].flag2?rows[0].flag2:0
           });
 
         }
         else
         {
 
-          db.all("SELECT * FROM spur WHERE src = ? AND flag6 = ?",
-          [parametros.address,parametros.id], (err,rows) =>
-          {
-
-            if(rows && rows.length > 0)
-            {
-
-              var expires = parseInt((parseInt(rows[0].date) + (60*60*6)) - timestamp.now());
-              writeServer(response,{
-                err:'',
-                expires: expires,
-                val:rows[0].flag1?rows[0].flag1:0,
-                expected:rows[0].amount,
-                status:rows[0].flag2?rows[0].flag2:0
-              });
-
-            }
-            else
-            {
-
-              writeServer(response,{
-                err:'Wrong pair Address/ID',
-                val:0,
-                expected:0
-              });
-
-            }
-
+          writeServer(response,{
+            err:'Wrong Tx ID',
+            val:0,
+            expected:0
           });
 
         }
 
-      }).catch((e) =>
-      {
-
-        writeServer(response,{
-          err:'Please, try again later..'
-        });
-
       });
+
+    }
+
 
     }
     else
     {
 
       writeServer(response,{
-        err:'Please indicate an address.'
+        err:'Please indicate an Tx ID.'
       });
 
     }
