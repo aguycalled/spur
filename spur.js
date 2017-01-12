@@ -10,29 +10,39 @@ const timestamp = require('unix-timestamp');
 const kbpgp = require('kbpgp');
 
 const config = require('config');
-
 const file = config.get('db_file');
-const exists = fs.existsSync(file);
 
 process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0"
 
+var generatedPublicKey, generatedPrivateKey;
+
 var db = new sqlite.Database(file);
 
-var txFee = config.get('txFee');
-var min_amount = config.get('min_amount');
-var max_amount = config.get('max_amount');
-var number_confirmations = config.get('number_confirmations');
+var txFeeLocal = config.get('extra_fee') || 0;
+var min_amount = 10;
+var max_amount = 10000;
+var number_confirmations = config.get('number_confirmations') || 5;
 
 var ready = 0;
 
 navClient = new Client({
 
-  username: config.get('rpc_user'),
-  password: config.get('rpc_password'),
-  port: config.get('rpc_port'),
-  host: config.get('rpc_host'),
+  username: config.get('rpc_user') || 'user',
+  password: config.get('rpc_password') || 'password',
+  port: config.get('rpc_port') || 44444,
+  host: config.get('rpc_host') || '127.0.0.1',
 
 })
+
+if(!navClient)
+{
+
+  console.log("Error: Couldn't connect to rpc server "+config.get('rpc_host')+":"+config.get('rpc_port'))
+  exit(-1)
+
+}
+
+const exists = fs.existsSync(file);
 
 db.serialize(() =>
 {
@@ -46,12 +56,193 @@ db.serialize(() =>
 
 });
 
-console.log("Starting SPUR")
+console.log("Creating private/public key pair...")
 
-check();
+var F = kbpgp["const"].openpgp;
+
+kbpgp.KeyManager.generate({
+  userid: "Spur <spur@spur.onion>",
+  primary: {
+    nbits: 4096,
+    flags: F.certify_keys | F.sign_data | F.auth | F.encrypt_comm | F.encrypt_storage,
+    expire_in: 0  // never expire
+  },
+  subkeys: [
+    {
+      nbits: 2048,
+      flags: F.sign_data,
+      expire_in: 86400 * 365 * 8 // 8 years
+    }, {
+      nbits: 2048,
+      flags: F.encrypt_comm | F.encrypt_storage,
+      expire_in: 86400 * 365 * 8
+    }
+  ]
+}, (err, spur) =>
+{
+  if (!err)
+  {
+
+    spur.sign({}, (err) =>
+    {
+
+      spur.export_pgp_private ({
+        passphrase: ''
+      }, (err, pgp_private) =>
+      {
+
+        if(!err)
+        {
+
+          generatedPrivateKey = pgp_private;
+
+          spur.export_pgp_public({}, (err, pgp_public) =>
+          {
+
+            if(!err)
+            {
+
+              generatedPublicKey = pgp_public;
+              console.log("Testing keys...")
+
+              var sampleText = "I believe the grass is no more greener on the other side."
+
+              kbpgp.KeyManager.import_from_armored_pgp({
+                armored: generatedPublicKey
+              }, (err, testKey) =>
+              {
+
+                if (!err)
+                {
+
+                  kbpgp.box({msg: sampleText, encrypt_for: testKey}, (err, result_armored_string, result_raw_buffer) =>
+                  {
+
+                    kbpgp.KeyManager.import_from_armored_pgp({
+                      armored: generatedPrivateKey
+                    }, (err, testKeyPriv) =>
+                    {
+
+                      if (!err)
+                      {
+
+                        if (testKeyPriv.is_pgp_locked())
+                        {
+
+                          testKeyPriv.unlock_pgp({
+                            passphrase: ''
+                          }, (err) =>
+                          {
+
+                            if (!err)
+                            {
+
+                              var ring = new kbpgp.keyring.KeyRing;
+                              ring.add_key_manager(testKeyPriv);
+
+                              kbpgp.unbox({keyfetch: ring, armored: result_armored_string}, (err, literals) =>
+                              {
+
+                                if (err != null)
+                                {
+
+                                  console.log("PGP ERROR "+err)
+
+                                }
+                                else
+                                {
+
+                                  if (sampleText === literals[0].toString())
+                                  {
+
+                                    console.log("Starting SPUR")
+                                    check();
+
+                                  }
+                                  else
+                                  {
+
+                                    console.log("Keys pair didn't pass test.")
+
+                                  }
+                                }
+                              });
+
+                            }
+                            else
+                            {
+
+                              console.log("Error unlocking.")
+
+                            }
+
+                          });
+
+                        }
+                        else
+                        {
+
+                          console.log("Private key is not locked.")
+
+                        }
+
+                      }
+                      else
+                      {
+
+                        console.log("Error importing private key.")
+
+                      }
+
+                    });
+
+                  });
+
+                }
+                else
+                {
+
+                  console.log("Error testing Public Key.")
+
+                }
+
+              });
+
+            }
+            else
+            {
+
+              console.log("Error exporting Public key.")
+
+            }
+
+          });
+
+        }
+        else
+        {
+
+          console.log("Error exporting Private key.")
+
+        }
+
+      });
+
+    });
+
+  }
+  else
+  {
+
+    console.log("Error adding key: "+err);
+
+  }
+
+});
 
 function check()
 {
+
   var post_data = "num_addresses=0"
 
   var post_options = {
@@ -80,7 +271,7 @@ function check()
         txFee = json.data.transaction_fee;
         min_amount = json.data.min_amount;
         max_amount = json.data.max_amount;
-        console.log("\nTx Fee: "+txFee+"\nMin amount: "+min_amount+"\nMax amount: "+max_amount+"\n\n")
+        console.log("\nRemote Tx Fee: "+txFee+"\nMin amount: "+min_amount+"\nMax amount: "+max_amount+"\n\n")
         ready = 1;
         mainLoop();
 
@@ -103,7 +294,6 @@ function check()
     setTimeout(check, 10000);
 
   })
-
 
   post_req.write(post_data);
   post_req.end();
@@ -225,7 +415,7 @@ function mainLoop()
                      max_amount != json.data.max_amount)
                   {
 
-                    console.log("\nTx Fee: "+txFee+"\nMin amount: "+min_amount+"\nMax amount: "+max_amount+"\n\n")
+                    console.log("\nRemote Tx Fee: "+txFee+"\nMin amount: "+min_amount+"\nMax amount: "+max_amount+"\n\n")
 
                   }
 
@@ -235,12 +425,17 @@ function mainLoop()
 
                   var pubKey = json.data.public_key;
 
-                  if(n_addr == anonAddr.length){
+                  var amountWithoutLocalFee = (n.amount * ((1+txFee)/100)) / ((1+txFee+txFeeLocal)/100)
+
+                  console.log("REceived "+n.amount+" sending "+amountWithoutLocalFee)
+
+                  if(n_addr == anonAddr.length)
+                  {
 
                     async.forEachLimit(anonAddr, 1, (na, cb) =>
                     {
 
-                      navClient.sendToAddress(na, parseFloat(n.amount), null, null, n.dest, (tx,err) =>
+                      navClient.sendToAddress(na, parseFloat(amountWithoutLocalFee), null, null, n.dest, (tx,err) =>
                       {
 
                         if(err)
@@ -373,7 +568,7 @@ function handleRequest(request, response){
       parametros.data = decodeURI(parametros.data)
 
       kbpgp.KeyManager.import_from_armored_pgp({
-        armored: fs.readFileSync('priv.key')
+        armored: generatedPrivateKey
       }, (err, pk) =>
       {
 
@@ -391,7 +586,6 @@ function handleRequest(request, response){
                 if (!err)
                 {
 
-                  console.log("Loaded private key with passphrase");
                   var ring = new kbpgp.keyring.KeyRing;
                   ring.add_key_manager(pk);
 
@@ -401,6 +595,8 @@ function handleRequest(request, response){
                     if (err != null)
                     {
 
+                      console.log("PGP ERROR "+err)
+
                       writeServer(response,{
                         err:'ERROR PGP Keys.'
                       });
@@ -408,7 +604,7 @@ function handleRequest(request, response){
                     }
                     else
                     {
-                      
+
                       parametros.data = literals[0].toString();
 
                       var data_parts = parametros.data.split('#######');
@@ -482,7 +678,7 @@ function handleRequest(request, response){
                                        max_amount != json.data.max_amount)
                                     {
 
-                                      console.log("\nTx Fee: "+txFee+"\nMin amount: "+min_amount+"\nMax amount: "+max_amount+"\n\n")
+                                      console.log("\nRemote Tx Fee: "+txFee+"\nMin amount: "+min_amount+"\nMax amount: "+max_amount+"\n\n")
 
                                     }
 
@@ -499,10 +695,10 @@ function handleRequest(request, response){
                                     db.run("UPDATE spur SET flag6 = ?, date = ?, fee = ?, dest = ?, value = ?, amount = ? WHERE src = ?", [
                                       token,
                                       parseInt(timestamp.now()),
-                                      txFee,
+                                      txFee+txFeeLocal,
                                       msg,
                                       parseFloat(parametros.amount).toFixed(8),
-                                      parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+(txFee/100))).toFixed(8),
+                                      parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+(txFee+txFeeLocal/100))).toFixed(8),
                                       row.addr
                                     ], (err) =>
                                     {
@@ -510,9 +706,9 @@ function handleRequest(request, response){
                                       if(!err)
                                       {
 
-                                        row.fee = txFee;
+                                        row.fee = txFee+txFeeLocal;
                                         row.id = token;
-                                        row.amount = parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+(txFee/100))).toFixed(8);
+                                        row.amount = parseFloat(parseFloat(parametros.amount).toFixed(8)*(1+(txFee+txFeeLocal/100))).toFixed(8);
                                         row.value = parseFloat(parametros.amount).toFixed(8);
                                         row.err = "";
                                         writeServer(response,row);
@@ -578,6 +774,7 @@ function handleRequest(request, response){
                 else
                 {
 
+                  console.log("PGP ERROR "+err)
                   writeServer(response,{
                     err:'ERROR PGP Keys.'
                   });
@@ -592,6 +789,7 @@ function handleRequest(request, response){
         else
         {
 
+          console.log("PGP ERROR "+err)
           writeServer(response,{
             err:'ERROR PGP Keys.'
           });
@@ -707,11 +905,8 @@ function handleRequest(request, response){
           if(json.status == 200 && json.type == "SUCCESS")
           {
 
-            var pubKey = json.data.public_key;
-            var pubKeyLocal = fs.readFileSync('pub.key',"utf-8");
-
             writeServer(response,{
-              err:'', pubKey: pubKeyLocal, fee: json.data.transaction_fee
+              err:'', pubKey: generatedPublicKey, fee: json.data.transaction_fee + txFeeLocal
             });
 
           }

@@ -1,7 +1,5 @@
 {
-  "txFee": 0.02,
-  "min_amount": 10,
-  "max_amount": 10000,
+  "extra_fee": 1,
   "number_confirmations": 30,
   "incoming_host": "176.9.19.245",
   "incoming_port": 3000,
