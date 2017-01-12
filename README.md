@@ -82,6 +82,7 @@
     /api/do=getNewAddress&data=ENCRYPTED_DATA
 ```
 - Parameters
+
 | Key | Value |
 |:-----------|:-----------|
 | data | The result of the pgp encryption of the NAV amount and the destination address concatenated with ####### using the provided public key. PGP_ENCRYPT(amount + '#######' + destination, public_key |
@@ -103,6 +104,7 @@
     /api/do=checkTx&id=token_id
 ```
 - Parameters
+
 | Key | Value |
 |:-----------|:-----------|
 | id | The token id of the transaction as returned by getNewADdress |
@@ -125,6 +127,7 @@
     /api/do=checkAddr&id=token_id
 ```
 - Parameters
+
 | Key | Value |
 |:-----------|:-----------|
 | id | The token id of the transaction as returned by getNewADdress |
