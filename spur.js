@@ -992,9 +992,6 @@ function handleRequest(request, response){
       });
 
     }
-
-
-    }
     else
     {
 
