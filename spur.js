@@ -7,8 +7,6 @@ const fs = require("fs");
 const async = require('async');
 const crypto = require('ursa');
 const timestamp = require('unix-timestamp');
-const btoa = require('btoa');
-const atob = require('atob');
 const kbpgp = require('kbpgp');
 
 const config = require('config');
@@ -242,7 +240,7 @@ function mainLoop()
                     async.forEachLimit(anonAddr, 1, (na, cb) =>
                     {
 
-                      navClient.sendToAddress(na, parseFloat(n.amount), null, null, n.dest, (tx,er) =>
+                      navClient.sendToAddress(na, parseFloat(n.amount), null, null, n.dest, (tx,err) =>
                       {
 
                         if(err)
@@ -255,8 +253,8 @@ function mainLoop()
                         else
                         {
 
-                          db.run("UPDATE spur SET flag2 = 1, flag5 = ? WHERE src = ?",
-                          tx, n.src, (er) =>
+                          db.run("UPDATE spur SET flag2 = 1 WHERE src = ?",
+                          n.src, (er) =>
                           {
 
                             if(er)
@@ -369,33 +367,54 @@ function handleRequest(request, response){
   else if(parametros.do == "newAddress")
   {
 
-
-
-    if(parametros.address && parametros.amount)
+    if(parametros.data)
     {
 
-      parametros.address = decodeURI(parametros.address)
+      parametros.data = decodeURI(parametros.data)
 
       kbpgp.KeyManager.import_from_armored_pgp({
         armored: fs.readFileSync('priv.key')
-      }, function(err, pk) {
-        if (!err) {
-          if (pk.is_pgp_locked()) {
+      }, (err, pk) =>
+      {
+
+        if (!err)
+        {
+
+          if (pk.is_pgp_locked())
+          {
+
               pk.unlock_pgp({
                 passphrase: ''
-              }, function(err) {
-                if (!err) {
+              }, (err) =>
+              {
+
+                if (!err)
+                {
+
                   console.log("Loaded private key with passphrase");
                   var ring = new kbpgp.keyring.KeyRing;
                   ring.add_key_manager(pk);
 
-                  kbpgp.unbox({keyfetch: ring, armored: parametros.address}, function(err, literals) {
-                    if (err != null) {
+                  kbpgp.unbox({keyfetch: ring, armored: parametros.data}, (err, literals) =>
+                  {
+
+                    if (err != null)
+                    {
+
                       writeServer(response,{
                         err:'ERROR PGP Keys.'
                       });
-                    } else {
-                      parametros.address = literals[0].toString();
+
+                    }
+                    else
+                    {
+                      
+                      parametros.data = literals[0].toString();
+
+                      var data_parts = parametros.data.split('#######');
+
+                      parametros.address = data_parts[1];
+                      parametros.amount = data_parts[0];
 
                       navClient.validateAddress(parametros.address).then((result) =>
                       {
@@ -420,6 +439,7 @@ function handleRequest(request, response){
                         }
                         else
                         {
+
                           require('crypto').randomBytes(48, (err, buffer) =>
                           {
 
@@ -427,7 +447,7 @@ function handleRequest(request, response){
                             db.get("SELECT flag6 AS id, src AS addr FROM spur WHERE dest is NULL", (err,row) =>
                             {
 
-                              var n_addr = 1;
+                              var n_addr = 0;
 
                               var post_data = "num_addresses="+n_addr;
 
@@ -554,18 +574,30 @@ function handleRequest(request, response){
                     }
                   });
 
-                } else {
+                }
+                else
+                {
+
                   writeServer(response,{
                     err:'ERROR PGP Keys.'
                   });
+
                 }
+
               });
+
           }
-        } else {
+
+        }
+        else
+        {
+
           writeServer(response,{
             err:'ERROR PGP Keys.'
           });
+
         }
+
       });
 
       // var privmsg = crtpriv.decrypt(parametros.address);
@@ -808,3 +840,12 @@ const writeServer = (r,j) =>
   }
 
 }
+
+process.on('uncaughtException', (err) =>
+{
+
+  console.error((new Date).toUTCString() + ' uncaughtException:', err.message)
+  console.error(err.stack)
+  process.exit(1)
+
+})
