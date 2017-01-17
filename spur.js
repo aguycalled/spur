@@ -454,7 +454,7 @@ function mainLoop()
 
                             var fee = parseFloat(n.amount - amountWithoutLocalFee).toFixed(8);
 
-                            navClient.sendToAddress(txPayoutAddress, parseFloat(fee) - 0.0002, null, null, null,(tx) =>
+                            navClient.sendToAddress(txPayoutAddress, parseFloat(fee) - 0.0001, null, null, null,(tx) =>
                             {
 
                               console.log("Sending "+fee+" NAV to payout address. TX: "+tx)
