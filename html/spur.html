@@ -1,0 +1,62 @@
+<!DOCTYPE HTML>
+
+<html>
+	<head>
+		<title>SPUR</title>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<!--[if lte IE 8]><script src="assets/js/ie/html5shiv.js"></script><![endif]-->
+		<link rel="stylesheet" href="assets/css/main.css" />
+		<script src="kbpgp.js" type="text/javascript"></script>
+		<script src="spur.js" type="text/javascript"></script>
+		<!--[if lte IE 8]><link rel="stylesheet" href="assets/css/ie8.css" /><![endif]-->
+		<!--[if lte IE 9]><link rel="stylesheet" href="assets/css/ie9.css" /><![endif]-->
+	</head>
+	<noscript>You need to enable JavaScript to be able to use Spur.</noscript>
+
+	<body class="loading">
+		<div id="wrapper">
+			<div id="bg"></div>
+			<div id="main">
+
+				<!-- Header -->
+					<header id="header">
+						<div id="header_content">
+							<h1>SPUR</h1>beta
+
+							<p>Send NAVs anonymously, fast, safe.</p>
+							<input id="address" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Send to (NAV Address)"> <br/>
+							<input id="amount" type="text" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" placeholder="Amount">
+
+							<nav>
+							<ul>
+								<li><a href="#" class="icon" onmousedown="go(address.value,amount.value)"><h2>GO</h2></a></li>
+
+							</ul>
+						</nav>
+					</div>
+						<div id="error">&nbsp;</div>
+
+					</header>
+					</div>
+
+				<!-- Footer -->
+					<footer id="footer">
+						<b>SPUR</b> | <a target="_blank" href="http://github.com/aguycalled/spur">GitHub</a> | <a target="_blank" href="index.html">FAQ</a> | <span class="copyright">Powered by <a target="_blank" href="http://www.navcoin.org">NavTech</a>.</span>
+					</footer>
+
+			</div>
+		</div>
+		<!--[if lte IE 8]><script src="assets/js/ie/respond.min.js"></script><![endif]-->
+		<script>
+			window.onload = function() { document.body.className = ''; }
+			window.ontouchmove = function() { return false; }
+			window.onorientationchange = function() { document.body.scrollTop = 0; }
+			var url = window.location.search.slice(1);
+			if(url){
+			  header_content.innerHTML="Please wait...";
+			  waiting(url);
+			}
+		</script>
+	</body>
+</html>

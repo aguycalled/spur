@@ -24,7 +24,7 @@ function go(d,a){
                     error.innerHTML=res.err;
                   } else {
                     error.innerHTML="";
-                    document.location.href="http://"+window.location.hostname+"/?"+res.id;
+                    document.location.href="http://"+window.location.hostname+"/spur.html?"+res.id;
                   }
                 });
               });
@@ -47,7 +47,7 @@ function waiting(id){
       error.innerHTML=res.err;
     } else {
       error.innerHTML="";
-      header_content.innerHTML="<h1>OK.</h1><br><p>Please send "+res.amount+"NAV ("+res.value+"NAV + "+parseFloat(res.fee)+"% fee) to the following address:<br/><br/><strong>"+res.addr+"<strong><br/><br/><div id=\"balance\">The transaction will expire after "+parseInt(res.expires/3600)+" hours, "+parseInt((res.expires%3600)/60)+" minutes and "+parseInt((res.expires%3600)%60)+" seconds. <br><br>Amount received: 0NAV</div><br><br><span class=\"mini\">This page will update as soon as the transaction is confirmed.<br>Please transfer the full amount of NAVs before it expires.<br><br><a href=\"http://"+window.location.hostname+"/\">Home page</a> | <a target=\"_blank\" href=\"https://chainz.cryptoid.info/nav/address.dws?"+res.addr+".htm\">Blockchain Explorer</a> | <a href=\"http://"+window.location.hostname+"/?"+id+"\">Permalink</a> </span>";
+      header_content.innerHTML="<h1>OK.</h1><br><p>Please send "+res.amount+"NAV ("+res.value+"NAV + "+parseFloat(res.fee)+"% fee) to the following address:<br/><br/><strong>"+res.addr+"<strong><br/><br/><div id=\"balance\">The transaction will expire after "+parseInt(res.expires/3600)+" hours, "+parseInt((res.expires%3600)/60)+" minutes and "+parseInt((res.expires%3600)%60)+" seconds. <br><br>Amount received: 0NAV</div><br><br><span class=\"mini\">This page will update as soon as the transaction is confirmed.<br>Please transfer the full amount of NAVs before it expires.<br><br><a target=\"_blank\" href=\"http://"+window.location.hostname+"/spur.html\">Home page</a> | <a target=\"_blank\" href=\"https://chainz.cryptoid.info/nav/address.dws?"+res.addr+".htm\">Blockchain Explorer</a> | <a target=\"_blank\" href=\"http://"+window.location.hostname+"/spur.html?"+id+"\">Permalink</a> </span>";
       checkBalance(id)
     }
   })
@@ -66,7 +66,7 @@ function checkBalance(i){
       balance.innerHTML="The transaction will expire after "+parseInt(res.expires/3600)+" hours, "+parseInt((res.expires%3600)/60)+" minutes and "+parseInt((res.expires%3600)%60)+" seconds.<br><br>Amount received: "+res.val+"NAV";
       if(res.val >= res.expected){
         if(res.status == 1){
-          header_content.innerHTML="<h1>DONE!</h1><p>We safely received your NAVs and forwarded them through our anon servers.</p><br><br><a href=\"http://"+window.location.hostname+"/\">MAKE ANOTHER TRANSACTION.</a>";
+          header_content.innerHTML="<h1>DONE!</h1><p>We safely received your NAVs and forwarded them through our anon servers.</p><br><br><a href=\"http://"+window.location.hostname+"/spur.html\">MAKE ANOTHER TRANSACTION.</a>";
           again = 0;
         } else {
           balance.innerHTML="We received the total amount of NAVs. We will proceed to anonymise them through our servers.<br><br>Amount received: "+res.val+"NAV.";
