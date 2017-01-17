@@ -8,12 +8,12 @@
 
 	</head>
 
-	<body style="text-align:center;background: #348cb2 url('images/bg.jpg') bottom left;overflow:auto;color: #fff;font-family: 'Source Sans Pro', sans-serif;font-size: 15pt;">
+	<body style="text-align:center;background: #348cb2 url('images/bg.jpg');overflow:auto;color: #fff;font-family: 'Source Sans Pro', sans-serif;font-size: 15pt;">
     <div id="faq">
 
     <h1>SPUR - FAQ</H1>
 
-    <h1>Please, read before going on!!</H1>
+    <h1 style="color:pink">Please, read before going on!!</H1>
       <noscript class="noscript">
 
          <h1 style="color:orange">You need to enable Javascript in your browser in order to be able to use SPUR.</h1>
@@ -21,41 +21,49 @@
          <h2 style="color:orange">Worried about your safety? Check the source code at http://www.github.com/aguycalled/spur</h2>
       </noscript>
     <h2>How does SPUR work?</h2>
-    After defining destination address and NAV amount to deliver, SPUR provides an address and the full amount to transfer including the specified fee.<br>
-    Send the full amount to the SPUR given address and your NAVS will be delivered using NAVTech nodes.
+    After defining destination address and NAV amount to deliver, SPUR provides an address and the full amount to transfer including the specified fee.<br><br>
+    Send the full amount to the SPUR given address and your NAVS will be delivered using NAVTech nodes.<br><br>
 
     <h2>Why is it anonymous?</h2>
-    We believe that you are familiar with NAVTech if you arrived here, otherwise please take a deeper look to technical details on their White Paper: http://navcoin.org/downloads<br>
-    SPUR sends the transactions through NAVTech anon servers, making impossible to link originator of the transaction to destinatary.<br>
-    Both the amount and the destination of the transaction are encrypted using KBPGP javascript library on your browser before leaving your computer, so even a MITM attack or being spied by your government/ISP wouldn't compromise your anonimity.<br>
-    To further improve anonymity, we decided to launch SPUR only as a hidden service on TOR. <br>Please double check that the address you are accessing is the right one: http://4su7pqq6nyaecqoo.onion
+    We believe that you are familiar with NAVTech if you arrived here, otherwise please take a deeper look to technical details on their White Paper: http://navcoin.org/downloads<br><br>
+    SPUR sends the transactions through NAVTech anon servers, making impossible to link originator of the transaction to destinatary.<br><br>
+    Both the amount and the destination of the transaction are encrypted using KBPGP javascript library on your browser before leaving your computer, so even a MITM attack or being spied by your government/ISP wouldn't compromise your anonimity.<br><br>
+    To further improve anonymity, we decided to launch SPUR only as a hidden service on TOR. <br><br>Please double check that the address you are accessing is the right one: http://4su7pqq6nyaecqoo.onion<br><br>
 
     <h2>Could any of the involved addresses be tracked or linked to the transaction?</h2>
-    Every address is unique and generated for each transaction and will be only used one time.<br>
+    Every address is unique and generated for each transaction and will be only used one time.<br><br>
 
 
     <h2>Why do I receive the amount in several transactions on the destiny address?</h2>
-    Dividing the amount in different transactions and addresses makes impossible to link directly the transaction amount with the destiny, increasing the anonymity.
+    Dividing the amount in different transactions and addresses makes impossible to link directly the transaction amount with the destiny, increasing the anonymity.<br><br>
 
     <h2>Why SPUR?</h2>
-    SPUR is a perfect solution to send anonymous NAV transactions from all type of wallets or systems.<br>Without the need to set up the required servers or full nodes, and adding the extra security layer of TOR.
+    SPUR is a perfect solution to send anonymous NAV transactions from all type of wallets or systems.<br><br>Without the need to set up the required servers or full nodes, and adding the extra security layer of TOR.<br><br>
 
     <h2>Additional security measures</h2>
-    In order to remove any possibility of transfers tracking, we automatically remove the generated address and transfers from our servers 12 hours after the transaction has been done.
+    In order to remove even the most minimal possibility of transfers tracking, we automatically remove any collected data from our servers 12 hours after the transaction has been done.<br><br>
+
+    <h2>What kind of data do you exactly store?</h2>
+    We hold a little -sqlite- database with the following fields:<br>
+    <br>
+    - Address where you will send the coins.<br>
+    - Encrypted destination address.<br>
+    - Original value.<br>
+    - Fee.<br>
+    - Expected value.<br>
+    - Amount of coins received.<br><br>
+    As already stated, the transaction in the db will be cleaned 12 hours after being initiated.<br><br>
 
     <h2>What happens if I send a different amount?</h2>
-    If the sent amount is lower, the anon transaction will not be executed.<br> You will see the reached amount on the screen and you can do another transfer to fulfill the full amount. <br><b>Please be aware that if the remaining amount is not delivered before the transaction operation expires, the money will not be returned.</b><br> You have 6 hours to do so.<br>
-    If the amount is higher, only the amount requested will be delivered to destination.<br>Please ensure to send the exact amount.
-
-    <h2>What can I do if the browser is closed before the transaction is done?</h2>
-    You can go to the history and use the last url of spur used. <br>You will be able to access to that url before its expiry time of 6h.
+    If the sent amount is lower, the anon transaction will not be executed.<br><br> You will see the reached amount on the screen and you can do another transfer to fulfill the full amount. <br><br><b>Please be aware that if the remaining amount is not delivered before the transaction operation expires, the money will not be returned.</b><br><br> You have 6 hours to do it.<br><br>
+    If the amount is higher, only the amount requested will be delivered to destination.<br><br>Please ensure to send the exact amount.<br><br>
 
     <h2>What if I have a problem?</h2>
-    As we don't keep track of any transaction data, it is possible that we cannot help you if anything goes wrong. We suggest checking the transaction at Navcoin Blockexplorer https://chainz.cryptoid.info/nav/.<br>
+    As we don't keep track of any transaction data and due to the ninja nature of NavTech, we won't be able to identify you and probably will be impossible to help you if anything goes wrong once the NAVCoins leave our servers.<br><br>If you think your coins are stuck on our servers, please contact us. <br><br>
     <h2>How can I contact with you?</h2>
-    spuranon0@gmail.com
+    spuranon0@gmail.com<br><br>
     <h1>USE IT ON YOUR OWN RISK.</h1><h1>
-    <a style="text-decoration:underline;color:orange" href="spur.html">I'M READY. I WANT TO USE SPUR.</a></h1><br>
+    <a style="text-decoration:underline;color:pink" href="spur.html">I'M READY. I WANT TO USE SPUR.</a></h1><br>
   </div>
 
 
