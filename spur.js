@@ -427,7 +427,7 @@ function mainLoop()
 
                   var pubKey = json.data.public_key;
 
-                  var amountWithoutLocalFee = (n.amount * (1+(txFee)/100)) / (1+(txFee+txFeeLocal)/100)
+                  var amountWithoutLocalFee = parseFloat(n.amount * (1+(txFee)/100)).toFixed(8) / parseFloat(1+(txFee+txFeeLocal)/100).toFixed(8)
 
                   if(n_addr == anonAddr.length)
                   {
@@ -435,46 +435,10 @@ function mainLoop()
                     async.forEachLimit(anonAddr, 1, (na, cb) =>
                     {
 
-                      navClient.sendToAddress(na, parseFloat(amountWithoutLocalFee), null, null, n.dest, (tx) =>
+                      navClient.sendToAddress(na, parseFloat(amountWithoutLocalFee), null, null, n.dest).then((tx) =>
                       {
 
-                        if(tx){
-
-                          var fee = parseFloat(n-amount - amountWithoutLocalFee);
-
-                          navClient.sendToAddress(txPayoutAddress, fee, null, null, null,(tx) =>
-                          {
-
-                            console.log("Sending "+fee+" NAV to payout address. TX: "+tx)
-
-                          }).catch((e) =>
-                          {
-
-                            console.log("Error sending fee to payout address: "+ e)
-
-                          });
-
-                          db.run("UPDATE spur SET flag2 = 1 WHERE src = ?",
-                          n.src, (er) =>
-                          {
-
-                            if(er)
-                            {
-
-                              console.log("Err updatedbsendtoaddress: "+er)
-
-                            }
-
-                          })
-
-                        }
-
-                        cb();
-
-                      }).catch((e) =>
-                      {
-
-                        db.run("UPDATE spur SET flag2 = 0 WHERE src = ?",
+                        db.run("UPDATE spur SET flag2 = 1 WHERE src = ?",
                         n.src, (er) =>
                         {
 
@@ -482,12 +446,37 @@ function mainLoop()
                           {
 
                             console.log("Err updatedbsendtoaddress: "+er)
+                            cb();
+
+                          }
+                          else
+                          {
+
+                            var fee = parseFloat(n.amount - amountWithoutLocalFee).toFixed(8);
+
+                            navClient.sendToAddress(txPayoutAddress, parseFloat(fee) - 0.0002, null, null, null,(tx) =>
+                            {
+
+                              console.log("Sending "+fee+" NAV to payout address. TX: "+tx)
+                              cb();
+
+                            }).catch((e) =>
+                            {
+
+                              console.log("Error sending fee to payout address: "+ e)
+                              cb();
+
+                            });
 
                           }
 
                         })
 
+                      }).catch((e) =>
+                      {
+
                         console.log("Fatal error: "+e);
+                        cb();
 
                       });
 
@@ -559,7 +548,6 @@ function mainLoop()
     },1000)
 
   })
-
 
 }
 
@@ -815,10 +803,6 @@ function handleRequest(request, response){
         }
 
       });
-
-      // var privmsg = crtpriv.decrypt(parametros.address);
-      // console.log("me ha enviado "+privmsg)
-
 
     }
     else
