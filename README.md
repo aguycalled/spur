@@ -33,12 +33,10 @@
 
 ## Installing dependencies
 ```
-    cd spur
     npm install
 ```    
 ## Running
 ```
-    cd spur
     node spur.js
 ```    
 - Run in background with:
