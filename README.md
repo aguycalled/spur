@@ -80,7 +80,7 @@
     /api/do=getNewAddress&data=ENCRYPTED_DATA
 ```
 - Parameters
-
+ 
 | Key | Value |
 |:-----------|:-----------|
 | data | The result of the pgp encryption of the NAV amount and the destination address concatenated with ####### using the provided public key. PGP_ENCRYPT(amount + '#######' + destination, public_key |
