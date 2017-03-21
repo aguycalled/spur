@@ -1,4 +1,4 @@
-# SPUR
+# SPUR 
 
 - Nav Anonymization Web Gateway
 - Client side encryption using kbpgp (https://github.com/keybase/kbpgp)
