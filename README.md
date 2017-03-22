@@ -35,7 +35,7 @@
 ```
     npm install
 ```    
-## Running
+## Running 
 ```
     node spur.js
 ```    
